@@ -30878,7 +30878,7 @@ s=p}for(;;)switch(s){case 0:if($.a5==null)A.aup()
 $.a5.toString
 p=4
 s=7
-return A.r(A.arT("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhZnF5cGx2ZHhhbHZ1bnVncXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTMxMTcsImV4cCI6MjEwNjUyOTExN30.itw2fSnTYuJydO8XJxgqDSp6NIwAripfmMVOzBX0JX0","https://safqyplvdxalvunugqyk.supabase.co"),$async$aIx)
+return A.r(A.arT("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhZnF5cGx2ZHhhbHZ1bnVncXlrIiwicm9sZSI6ImFu --dart-define=SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhZnF5cGx2ZHhhbHZ1bnVncXlrIiwicm9sZSI6ImFuY29u...","https://safqyplvdxalvunugqyk.supabase.co"),$async$aIx)
 case 7:p=2
 s=6
 break
