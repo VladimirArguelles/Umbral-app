@@ -43,8 +43,8 @@ void main() {
     'teacher module starts with PIN setup and identity confirmation',
     (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-      await tester.ensureVisible(find.text('Módulo Profesores'));
-      await tester.tap(find.text('Módulo Profesores'));
+      await tester.ensureVisible(find.text('Profesores'));
+      await tester.tap(find.text('Profesores'));
       await tester.pumpAndSettle();
 
       expect(find.text('Crear PIN de acceso'), findsOneWidget);
@@ -58,8 +58,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-    await tester.ensureVisible(find.text('Módulo Profesores'));
-    await tester.tap(find.text('Módulo Profesores'));
+    await tester.ensureVisible(find.text('Profesores'));
+    await tester.tap(find.text('Profesores'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Cancelar'));
@@ -73,8 +73,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-    await tester.ensureVisible(find.text('Módulo Administrador'));
-    await tester.tap(find.text('Módulo Administrador'));
+    await tester.ensureVisible(find.text('Administrador'));
+    await tester.tap(find.text('Administrador'));
     await tester.pumpAndSettle();
 
     expect(find.text('Crear PIN de acceso'), findsOneWidget);
@@ -86,8 +86,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-    await tester.ensureVisible(find.text('Módulo Administrador'));
-    await tester.tap(find.text('Módulo Administrador'));
+    await tester.ensureVisible(find.text('Administrador'));
+    await tester.tap(find.text('Administrador'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Cancelar'));
