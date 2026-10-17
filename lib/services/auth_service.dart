@@ -26,7 +26,9 @@ class AuthService {
   Future<void> sendAccountRecoveryEmail(String email) {
     return _supabase.auth.resetPasswordForEmail(
       email,
-      redirectTo: kIsWeb ? Uri.base.origin : 'umbral://reset-password',
+      redirectTo: kIsWeb
+          ? Uri.base.replace(query: '', fragment: '').toString()
+          : 'umbral://reset-password',
     );
   }
 
