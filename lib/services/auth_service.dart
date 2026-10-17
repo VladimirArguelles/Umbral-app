@@ -78,11 +78,7 @@ class AuthService {
     if (profileId is! String) {
       throw const AuthException('El PIN no está vinculado a un perfil.');
     }
-    return ModuleAccess(
-      module: module,
-      pin: pin,
-      profileId: profileId,
-    );
+    return ModuleAccess(module: module, pin: pin, profileId: profileId);
   }
 
   Future<Map<String, dynamic>> runModuleAction({
@@ -112,30 +108,26 @@ class AuthService {
     return Map<String, dynamic>.from(data['result'] as Map);
   }
 
-  /// Obtiene el rol del usuario actual según su ID de autenticación
   Future<String> getUserRole() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return 'none';
 
-    final userId = user.id;
+    final assignments = await _supabase
+        .from('usuario_roles')
+        .select('roles!inner(codigo)')
+        .eq('usuario_id', user.id);
 
-    final profileData = await _supabase
-        .from('perfiles')
-        .select('rol')
-        .eq('id', userId)
-        .maybeSingle();
+    final assignedRoles = assignments
+        .map((assignment) {
+          final role = assignment['roles'];
+          return role is Map ? role['codigo']?.toString() : null;
+        })
+        .whereType<String>()
+        .toSet();
 
-    if (profileData != null && profileData['rol'] != null) {
-      return profileData['rol'].toString().toLowerCase();
+    for (final role in ['administrador', 'profesor', 'alumno']) {
+      if (assignedRoles.contains(role)) return role;
     }
-
-    final alumnoData = await _supabase
-        .from('alumnos')
-        .select('user_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-    if (alumnoData != null) return 'alumno';
     return 'desconocido';
   }
 }

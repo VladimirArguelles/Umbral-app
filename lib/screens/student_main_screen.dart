@@ -4,6 +4,7 @@ import 'student_attendance_screen.dart';
 import 'student_courses_screen.dart';
 import 'student_dashboard_screen.dart';
 import 'student_surveys_screen.dart';
+import '../theme/app_colors.dart';
 
 class StudentMainScreen extends StatefulWidget {
   final String username;
@@ -43,10 +44,10 @@ class _StudentMainScreenState extends State<StudentMainScreen> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
-          backgroundColor: const Color(0xFF0F172A),
+          backgroundColor: const Color(0xFF140D20),
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF22C55E),
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: AppColors.softAccent,
+          unselectedItemColor: Colors.white54,
           selectedFontSize: 12,
           unselectedFontSize: 12,
           elevation: 10,

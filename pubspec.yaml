@@ -28,3 +28,4 @@ flutter:
   # Registro oficial de la carpeta y archivo del logotipo
   assets:
     - assets/logo_umbral.png
+    - assets/images/formaciones_inmujer.png

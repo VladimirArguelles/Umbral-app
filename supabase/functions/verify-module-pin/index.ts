@@ -120,11 +120,25 @@ Deno.serve(async (request: Request) => {
     return jsonResponse(200, { valid: false });
   }
 
+  const expectedRole = module === "profesor" ? "profesor" : "administrador";
+  const profileId = authorization.profile_id;
+  if (typeof profileId !== "string") {
+    return jsonResponse(200, { valid: false });
+  }
+  let roleIsAssigned: boolean;
+  try {
+    roleIsAssigned = await hasAssignedRole(adminClient, profileId, expectedRole);
+  } catch (error) {
+    console.error("Module role validation failed:", error);
+    return jsonResponse(500, { error: "Could not validate the module role." });
+  }
+  if (!roleIsAssigned) return jsonResponse(200, { valid: false });
+
   try {
     if (action === "verify") {
       return jsonResponse(200, {
         valid: true,
-        profile_id: authorization.profile_id ?? null,
+        profile_id: profileId,
         result: {},
       });
     }
@@ -133,7 +147,7 @@ Deno.serve(async (request: Request) => {
         adminClient,
         action,
         payload,
-        String(authorization.profile_id),
+        profileId,
       )
       : await runAdminAction(adminClient, action, payload);
     return jsonResponse(200, { valid: true, result });
@@ -144,6 +158,21 @@ Deno.serve(async (request: Request) => {
     });
   }
 });
+
+async function hasAssignedRole(
+  client: ReturnType<typeof createClient>,
+  userId: string,
+  roleCode: string,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("usuario_roles")
+    .select("roles!inner(codigo)")
+    .eq("usuario_id", userId)
+    .eq("roles.codigo", roleCode)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
 
 async function runTeacherAction(
   client: ReturnType<typeof createClient>,

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:umbral/main.dart';
 import 'package:umbral/screens/home_screen.dart';
 import 'package:umbral/screens/register_modal.dart';
+import 'package:umbral/screens/student_main_screen.dart';
 
 void main() {
   setUpAll(() async {
@@ -117,5 +118,44 @@ void main() {
     expect(find.text('Correo Electrónico'), findsOneWidget);
     expect(find.text('Cédula'), findsOneWidget);
     expect(find.text('Username'), findsNothing);
+  });
+
+  testWidgets('student dashboard shows formation modules and opens courses', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: StudentMainScreen(username: 'María')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('FORMACIONES\nINMUJER'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Image && widget.semanticLabel == 'Mujeres formándose en educación, cocina y formación profesional',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('MIS CURSOS'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('IR A MIS CURSOS'));
+    await tester.tap(find.text('IR A MIS CURSOS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No hay una sesión activa.'), findsOneWidget);
+
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('MI ASISTENCIA'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('MI ASISTENCIA'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('ENCUESTAS'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('ENCUESTAS'), findsOneWidget);
   });
 }

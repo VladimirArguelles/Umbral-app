@@ -44,6 +44,29 @@ Editor del proyecto Supabase. La migración
 individuales y se vinculan a `profiles.id`. Los PIN se almacenan como hashes
 bcrypt y la tabla no es consultable desde la app.
 
+La migración `202610170001_role_based_access.sql` crea los roles `alumno`,
+`profesor` y `administrador`, y la relación `usuario_roles`. Migra los roles
+existentes de `perfiles.rol`, asigna `alumno` a las cuentas de alumnos y a las
+cuentas nuevas, y restringe las consultas del cliente mediante RLS. Los alumnos
+solo pueden consultar sus propios datos y los cursos en los que están inscritos.
+El acceso docente sigue limitado a cursos asociados al perfil vinculado al PIN;
+las operaciones del administrador requieren el rol `administrador`.
+
+Después de aplicar la migración, concede los roles del personal mediante el
+SQL Editor, usando el UUID de cada cuenta de Supabase Auth. No asignes roles
+elevados desde la app ni desde metadatos de registro:
+
+```sql
+INSERT INTO public.usuario_roles (usuario_id, rol_id)
+SELECT 'UUID_DE_LA_CUENTA', id
+FROM public.roles
+WHERE codigo = 'profesor';
+```
+
+Usa `administrador` en lugar de `profesor` para conceder el rol administrativo.
+Para retirar un rol, elimina únicamente la asignación correspondiente de
+`public.usuario_roles`.
+
 Después de aplicar las migraciones, configura PIN individuales docentes y un
 PIN de administrador desde el
 SQL Editor. Sustituye los valores de ejemplo por PIN nuevos; no los guardes en

@@ -88,7 +88,13 @@ class _AuthGateState extends State<AuthGate> {
         }
 
         switch (snapshot.data ?? 'desconocido') {
-          case 'alumno':
+          case 'alumno' ||
+              'alumna' ||
+              'alumnos' ||
+              'estudiante' ||
+              'estudiantes' ||
+              'student' ||
+              'students':
             final user = _session?.user;
             final metadata = user?.userMetadata;
             final displayName =
