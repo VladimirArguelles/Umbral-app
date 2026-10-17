@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:umbral/main.dart';
 import 'package:umbral/screens/home_screen.dart';
+import 'package:umbral/screens/login_modal.dart';
+import 'package:umbral/screens/module_pin_modal.dart';
 import 'package:umbral/screens/register_modal.dart';
 import 'package:umbral/screens/student_main_screen.dart';
 
@@ -105,6 +107,52 @@ void main() {
 
     expect(find.text('Correo electrónico'), findsOneWidget);
     expect(find.text('Contraseña'), findsOneWidget);
+  });
+
+  testWidgets('login offers password recovery by email', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: LoginModal())),
+    );
+
+    await tester.tap(find.text('¿Olvidaste tu contraseña?'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recuperar acceso'), findsOneWidget);
+    expect(find.text('Enviar enlace'), findsOneWidget);
+  });
+
+  testWidgets('teacher PIN login offers PIN recovery by email', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const ModulePinModal(
+                  module: 'profesor',
+                  title: 'Acceso de profesor',
+                ),
+              ),
+              child: const Text('Abrir PIN'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Abrir PIN'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('¿Olvidaste tu PIN?'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recuperar acceso'), findsOneWidget);
+    expect(find.text('Correo electrónico'), findsOneWidget);
+    expect(find.text('Enviar enlace'), findsOneWidget);
   });
 
   testWidgets('student registration asks for email and national ID', (

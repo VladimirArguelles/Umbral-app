@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import 'recovery_email_modal.dart';
 
 class ModulePinModal extends StatefulWidget {
   const ModulePinModal({required this.module, required this.title, super.key});
@@ -44,7 +45,6 @@ class _ModulePinModalState extends State<ModulePinModal> {
         setState(() => _errorMessage = 'El PIN no es válido.');
         return;
       }
-
       Navigator.of(context).pop(access);
     } on Exception catch (error) {
       if (!mounted) return;
@@ -52,6 +52,13 @@ class _ModulePinModalState extends State<ModulePinModal> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _showPinRecovery() {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => const RecoveryEmailModal(credential: 'tu PIN'),
+    );
   }
 
   @override
@@ -96,6 +103,16 @@ class _ModulePinModalState extends State<ModulePinModal> {
                 return null;
               },
               onFieldSubmitted: (_) => _validatePin(),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isLoading ? null : _showPinRecovery,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.softAccent,
+                ),
+                child: const Text('¿Olvidaste tu PIN?'),
+              ),
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 12),

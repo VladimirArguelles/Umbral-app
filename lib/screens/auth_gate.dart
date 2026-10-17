@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
+import 'account_recovery_screen.dart';
 import 'home_screen.dart';
 import 'student_main_screen.dart';
 
@@ -19,6 +20,7 @@ class _AuthGateState extends State<AuthGate> {
   late final StreamSubscription<AuthState> _authSubscription;
   Session? _session;
   Future<String>? _roleFuture;
+  bool _isRecovering = false;
 
   @override
   void initState() {
@@ -28,6 +30,11 @@ class _AuthGateState extends State<AuthGate> {
     _authSubscription = _auth.onAuthStateChange.listen((authState) {
       setState(() {
         _session = authState.session;
+        if (authState.event == AuthChangeEvent.passwordRecovery) {
+          _isRecovering = true;
+        } else if (authState.event == AuthChangeEvent.signedOut) {
+          _isRecovering = false;
+        }
         _loadRole();
       });
     });
@@ -45,6 +52,12 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isRecovering && _session != null) {
+      return AccountRecoveryScreen(
+        onComplete: () => setState(() => _isRecovering = false),
+      );
+    }
+
     if (_session == null) {
       return const HomeScreen();
     }

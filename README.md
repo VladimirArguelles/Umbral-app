@@ -35,14 +35,16 @@ envía nombre, cédula y teléfono a Supabase Auth. La migración
 `alumnos.user_id` mediante la cédula; si todavía no existe la fila, la crea.
 La migración `202610140003_student_data_policies.sql` aplica las políticas RLS
 para que cada alumno consulte y actualice únicamente sus datos y comprobantes.
+El formulario de inicio envía un enlace de recuperación al correo registrado.
+Al abrirlo, el alumno puede definir una contraseña nueva.
 
 ## Acceso de profesores y administradores
 
 Ejecuta todas las migraciones SQL de `supabase/migrations` en orden desde el SQL
 Editor del proyecto Supabase. La migración
-`202610140001_module_access_pin.sql` crea `accesos_pin`; los PIN docentes son
-individuales y se vinculan a `profiles.id`. Los PIN se almacenan como hashes
-bcrypt y la tabla no es consultable desde la app.
+`202610140001_module_access_pin.sql` crea `accesos_pin`; los PIN de profesores
+y administradores son individuales y se vinculan a `perfiles.id`. Los PIN se
+almacenan como hashes bcrypt y la tabla no es consultable desde la app.
 
 La migración `202610170001_role_based_access.sql` crea los roles `alumno`,
 `profesor` y `administrador`, y la relación `usuario_roles`. Migra los roles
@@ -67,10 +69,10 @@ Usa `administrador` en lugar de `profesor` para conceder el rol administrativo.
 Para retirar un rol, elimina únicamente la asignación correspondiente de
 `public.usuario_roles`.
 
-Después de aplicar las migraciones, configura PIN individuales docentes y un
-PIN de administrador desde el
-SQL Editor. Sustituye los valores de ejemplo por PIN nuevos; no los guardes en
-el código ni en el repositorio:
+Después de aplicar las migraciones y asignar los roles, configura los PIN
+individuales de profesores y administradores desde el SQL Editor. Sustituye
+los valores de ejemplo por PIN nuevos; no los guardes en el código ni en el
+repositorio:
 
 ```powershell
 INSERT INTO public.accesos_pin (modulo, profesor_id, pin_hash)
@@ -80,9 +82,10 @@ VALUES (
   extensions.crypt('PIN_DOCENTE_NUEVO', extensions.gen_salt('bf'))
 );
 
-INSERT INTO public.accesos_pin (modulo, pin_hash)
+INSERT INTO public.accesos_pin (modulo, profesor_id, pin_hash)
 VALUES (
   'administrador',
+  'UUID_DEL_PERFIL_ADMIN',
   extensions.crypt('PIN_ADMIN_NUEVO', extensions.gen_salt('bf'))
 );
 ```
@@ -92,6 +95,18 @@ Despliega la función que valida los PIN con límite de intentos:
 ```powershell
 supabase functions deploy verify-module-pin
 ```
+
+Para habilitar la recuperación de PIN, ejecuta también la migración
+`202610170002_module_pin_recovery.sql` y vuelve a desplegar
+`verify-module-pin`. El enlace se envía al correo de la cuenta de Supabase Auth
+vinculada al perfil del profesor o administrador; al abrirlo, la app permite
+restablecer el PIN o la contraseña. El servidor valida la sesión, el rol y el
+perfil antes de guardar el nuevo PIN.
+
+En **Authentication > URL Configuration** de Supabase, agrega a las URL de
+redirección permitidas el origen web donde se publica la app y
+`umbral://reset-password` para Android/iOS. El enlace de recuperación de las
+apps nativas usa ese esquema; la web usa su origen actual.
 
 La función usa `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y la clave pública
 (`SUPABASE_PUBLISHABLE_KEY` o `SUPABASE_ANON_KEY`) configuradas en Supabase. La

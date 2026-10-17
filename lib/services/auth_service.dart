@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ModuleAccess {
@@ -21,6 +22,41 @@ enum ModulePinSetupResult {
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<void> sendAccountRecoveryEmail(String email) {
+    return _supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo: kIsWeb ? Uri.base.origin : 'umbral://reset-password',
+    );
+  }
+
+  Future<void> resetModulePin({
+    required String module,
+    required String pin,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'verify-module-pin',
+      body: {
+        'module': module,
+        'action': 'reset_pin',
+        'pin': pin,
+      },
+    );
+    final data = response.data;
+    if (response.status < 200 || response.status >= 300 || data is! Map) {
+      throw const AuthException('No se pudo restablecer el PIN.');
+    }
+    if (data['status'] == 'pin_in_use') {
+      throw const AuthException(
+        'Ese PIN ya está asignado. Elige otro PIN de acceso.',
+      );
+    }
+    if (data['status'] != 'reset') {
+      throw const AuthException(
+        'Esta cuenta no tiene permiso para restablecer el PIN.',
+      );
+    }
+  }
 
   Future<ModulePinSetupResult> createModulePin({
     required String module,

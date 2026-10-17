@@ -62,6 +62,54 @@ Deno.serve(async (request: Request) => {
     return jsonResponse(400, { error: "Invalid profile name." });
   }
 
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  if (action === "reset_pin") {
+    const authorizationHeader = request.headers.get("Authorization") ?? "";
+    const accessToken = authorizationHeader.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!accessToken) {
+      return jsonResponse(401, { error: "Authentication is required." });
+    }
+
+    const { data: userData, error: userError } =
+      await adminClient.auth.getUser(accessToken);
+    if (userError || !userData.user) {
+      return jsonResponse(401, { error: "The recovery session is invalid." });
+    }
+
+    const expectedRole = module === "profesor"
+      ? "profesor"
+      : "administrador";
+    try {
+      if (!await hasAssignedRole(adminClient, userData.user.id, expectedRole)) {
+        return jsonResponse(403, { error: "This account cannot reset this PIN." });
+      }
+    } catch (error) {
+      console.error("Module PIN recovery role validation failed:", error);
+      return jsonResponse(500, { error: "Could not validate the account role." });
+    }
+
+    const { data: reset, error: resetError } = await adminClient.rpc(
+      "restablecer_pin_modulo",
+      {
+        p_modulo: module,
+        p_profile_id: userData.user.id,
+        p_pin: pin,
+      },
+    );
+    if (resetError) {
+      console.error("Module PIN reset failed:", resetError.message);
+      return jsonResponse(500, { error: "Could not reset the PIN." });
+    }
+    if (!isRecord(reset) || typeof reset.status !== "string") {
+      console.error("Module PIN reset returned an invalid response.");
+      return jsonResponse(500, { error: "Could not reset the PIN." });
+    }
+    return jsonResponse(200, { status: reset.status });
+  }
+
   const clientAddress =
     request.headers.get("cf-connecting-ip")?.trim() ??
     request.headers.get("x-real-ip")?.trim() ??
@@ -78,10 +126,6 @@ Deno.serve(async (request: Request) => {
   const clientHash = Array.from(new Uint8Array(hashBuffer))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   if (action === "create_pin") {
     const { data: setup, error: setupError } = await adminClient.rpc(

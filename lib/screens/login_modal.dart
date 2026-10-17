@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_colors.dart';
+import 'recovery_email_modal.dart';
 import 'register_modal.dart';
 
 class LoginModal extends StatefulWidget {
@@ -93,6 +94,13 @@ class _LoginModalState extends State<LoginModal> {
     );
   }
 
+  Future<void> _showPasswordRecovery() {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => const RecoveryEmailModal(credential: 'tu contraseña'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -180,6 +188,16 @@ class _LoginModalState extends State<LoginModal> {
                     width: 2,
                   ),
                 ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isLoading ? null : _showPasswordRecovery,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.softAccent,
+                ),
+                child: const Text('¿Olvidaste tu contraseña?'),
               ),
             ),
             const SizedBox(height: 24),
