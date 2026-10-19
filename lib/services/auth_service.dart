@@ -2,22 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ModuleAccess {
-  const ModuleAccess({
-    required this.module,
-    required this.pin,
-    required this.profileId,
-  });
+  const ModuleAccess({required this.module, required this.pin});
 
   final String module;
   final String pin;
-  final String profileId;
 }
 
-enum ModulePinSetupResult {
-  created,
-  alreadyConfigured,
-  pinInUse,
-  invalidIdentity,
+class ModulePinException implements Exception {
+  const ModulePinException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class AuthService {
@@ -38,11 +35,7 @@ class AuthService {
   }) async {
     final response = await _supabase.functions.invoke(
       'verify-module-pin',
-      body: {
-        'module': module,
-        'action': 'reset_pin',
-        'pin': pin,
-      },
+      body: {'module': module, 'action': 'reset_pin', 'pin': pin},
     );
     final data = response.data;
     if (response.status < 200 || response.status >= 300 || data is! Map) {
@@ -60,63 +53,41 @@ class AuthService {
     }
   }
 
-  Future<ModulePinSetupResult> createModulePin({
+  Future<void> createModulePin({
     required String module,
-    required String nombres,
-    required String apellidos,
     required String pin,
   }) async {
-    final response = await _supabase.functions.invoke(
-      'verify-module-pin',
-      body: {
-        'module': module,
-        'action': 'create_pin',
-        'nombres': nombres,
-        'apellidos': apellidos,
-        'pin': pin,
-      },
+    final response = await _supabase.rpc(
+      'verificar_o_configurar_pin',
+      params: {'p_rol': module, 'p_pin': pin, 'p_accion': 'configurar'},
     );
-
-    final data = response.data;
-    if (response.status < 200 ||
-        response.status >= 300 ||
-        data is! Map ||
-        data['status'] is! String) {
-      throw const AuthException('No se pudo crear el PIN del módulo.');
-    }
-
-    return switch (data['status']) {
-      'created' => ModulePinSetupResult.created,
-      'already_configured' => ModulePinSetupResult.alreadyConfigured,
-      'pin_in_use' => ModulePinSetupResult.pinInUse,
-      'invalid_identity' => ModulePinSetupResult.invalidIdentity,
-      _ => throw const AuthException('Respuesta no válida al crear el PIN.'),
-    };
+    _requirePinRpcSuccess(response, 'No se pudo configurar el PIN.');
   }
 
-  Future<ModuleAccess?> validateModulePin({
+  Future<ModuleAccess> validateModulePin({
     required String module,
     required String pin,
   }) async {
-    final response = await _supabase.functions.invoke(
-      'verify-module-pin',
-      body: {'module': module, 'pin': pin},
+    final response = await _supabase.rpc(
+      'verificar_o_configurar_pin',
+      params: {'p_rol': module, 'p_pin': pin, 'p_accion': 'verificar'},
     );
+    _requirePinRpcSuccess(response, 'No se pudo validar el PIN.');
+    return ModuleAccess(module: module, pin: pin);
+  }
 
-    final data = response.data;
-    if (response.status < 200 ||
-        response.status >= 300 ||
-        data is! Map ||
-        data['valid'] is! bool) {
-      throw const AuthException('No se pudo validar el PIN del módulo.');
+  void _requirePinRpcSuccess(dynamic response, String fallbackMessage) {
+    if (response is! Map || response['exito'] is! bool) {
+      throw ModulePinException(fallbackMessage);
     }
-
-    if (data['valid'] != true) return null;
-    final profileId = data['profile_id'];
-    if (profileId is! String) {
-      throw const AuthException('El PIN no está vinculado a un perfil.');
+    if (response['exito'] != true) {
+      final message = response['mensaje'];
+      throw ModulePinException(
+        message is String && message.trim().isNotEmpty
+            ? message
+            : fallbackMessage,
+      );
     }
-    return ModuleAccess(module: module, pin: pin, profileId: profileId);
   }
 
   Future<Map<String, dynamic>> runModuleAction({

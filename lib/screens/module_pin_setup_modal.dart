@@ -14,8 +14,6 @@ class ModulePinSetupModal extends StatefulWidget {
 
 class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
   final _formKey = GlobalKey<FormState>();
-  final _nombresController = TextEditingController();
-  final _apellidosController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
   bool _isLoading = false;
@@ -23,8 +21,6 @@ class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
 
   @override
   void dispose() {
-    _nombresController.dispose();
-    _apellidosController.dispose();
     _pinController.dispose();
     _confirmPinController.dispose();
     super.dispose();
@@ -39,47 +35,22 @@ class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
     });
 
     try {
-      final result = await AuthService().createModulePin(
+      await AuthService().createModulePin(
         module: widget.module,
-        nombres: _nombresController.text.trim(),
-        apellidos: _apellidosController.text.trim(),
         pin: _pinController.text,
       );
 
       if (!mounted) return;
-      switch (result) {
-        case ModulePinSetupResult.created:
-        case ModulePinSetupResult.alreadyConfigured:
-          Navigator.of(context).pop(true);
-          return;
-        case ModulePinSetupResult.pinInUse:
-          setState(
-            () => _errorMessage =
-                'Ese PIN ya está asignado. Elige otro PIN de acceso.',
-          );
-        case ModulePinSetupResult.invalidIdentity:
-          setState(
-            () => _errorMessage =
-                'El nombre y los apellidos no corresponden a un perfil '
-                'autorizado para este módulo.',
-          );
-      }
+      Navigator.of(context).pop(true);
+    } on ModulePinException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
     } on Exception catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'No se pudo crear el PIN: $error');
+      setState(() => _errorMessage = 'No se pudo configurar el PIN: $error');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  String _requiredName(String? value, String label) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Escribe $label.';
-    }
-    if (value.trim().length > 100) {
-      return '$label no puede superar los 100 caracteres.';
-    }
-    return '';
   }
 
   @override
@@ -87,7 +58,7 @@ class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
     final role = widget.module == 'profesor' ? 'profesor' : 'administrador';
     return AlertDialog(
       backgroundColor: AppColors.background,
-      title: const Text('Crear PIN de acceso'),
+      title: const Text('Configurar PIN de acceso'),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -95,34 +66,11 @@ class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Confirma tu identidad como $role. El sistema asociará '
-                'automáticamente el ID único de tu perfil.',
-              ),
+              Text('Configura el PIN de acceso para el módulo de $role.'),
               const SizedBox(height: 16),
               _textField(
-                controller: _nombresController,
-                label: 'Nombres',
-                icon: Icons.person_outline,
-                validator: (value) {
-                  final error = _requiredName(value, 'tus nombres');
-                  return error.isEmpty ? null : error;
-                },
-              ),
-              const SizedBox(height: 12),
-              _textField(
-                controller: _apellidosController,
-                label: 'Apellidos',
-                icon: Icons.person_outline,
-                validator: (value) {
-                  final error = _requiredName(value, 'tus apellidos');
-                  return error.isEmpty ? null : error;
-                },
-              ),
-              const SizedBox(height: 12),
-              _textField(
                 controller: _pinController,
-                label: 'Crear PIN',
+                label: 'PIN',
                 icon: Icons.lock_outline,
                 obscureText: true,
                 keyboardType: TextInputType.number,
@@ -177,7 +125,7 @@ class _ModulePinSetupModalState extends State<ModulePinSetupModal> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Crear y continuar'),
+              : const Text('Configurar y continuar'),
         ),
       ],
     );

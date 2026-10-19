@@ -41,11 +41,10 @@ class _ModulePinModalState extends State<ModulePinModal> {
       );
 
       if (!mounted) return;
-      if (access == null) {
-        setState(() => _errorMessage = 'El PIN no es válido.');
-        return;
-      }
       Navigator.of(context).pop(access);
+    } on ModulePinException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = 'No se pudo validar el PIN: $error');
