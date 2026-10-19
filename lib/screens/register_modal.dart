@@ -19,6 +19,7 @@ class _RegisterModalState extends State<RegisterModal> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  String _tipoDocumento = 'V';
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -38,7 +39,8 @@ class _RegisterModalState extends State<RegisterModal> {
     setState(() => _isLoading = true);
 
     try {
-      final cedulaInput = _cedulaController.text.trim();
+      final numeroDocumento = _cedulaController.text.trim();
+      final cedulaCompleta = '$_tipoDocumento$numeroDocumento';
       final emailInput = _emailController.text.trim();
       final passwordInput = _passwordController.text;
       final nameInput = _nameController.text.trim();
@@ -46,7 +48,7 @@ class _RegisterModalState extends State<RegisterModal> {
 
       final preRegistrationIsValid = await Supabase.instance.client.rpc(
         'validar_preinscripcion_alumno',
-        params: {'p_cedula': cedulaInput, 'p_correo': emailInput},
+        params: {'p_cedula': cedulaCompleta, 'p_correo': emailInput},
       );
 
       if (preRegistrationIsValid is! bool) {
@@ -72,7 +74,7 @@ class _RegisterModalState extends State<RegisterModal> {
         password: passwordInput,
         data: {
           'full_name': nameInput,
-          'cedula': cedulaInput,
+          'cedula': cedulaCompleta,
           'phone': phoneInput,
         },
       );
@@ -196,24 +198,108 @@ class _RegisterModalState extends State<RegisterModal> {
               ),
               const SizedBox(height: 14),
 
-              // Campo: Cédula
-              _buildTextField(
-                label: 'Cédula',
-                hint: 'Ingresa tu número de cédula...',
-                icon: Icons.badge_outlined,
-                controller: _cedulaController,
-                keyboardType: TextInputType.text,
-                validator: (value) {
-                  final cedula = value?.trim() ?? '';
-                  if (cedula.isEmpty) return 'Ingresa tu cédula';
-                  if (!RegExp(
-                    r'^[VEJG]?[\s.-]*\d{5,12}$',
-                    caseSensitive: false,
-                  ).hasMatch(cedula)) {
-                    return 'Ingresa una cédula válida';
-                  }
-                  return null;
-                },
+              const Text(
+                'Documento de Identidad',
+                style: TextStyle(color: AppColors.softAccent, fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.panel,
+                      border: Border.all(color: AppColors.softAccent),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _tipoDocumento,
+                        dropdownColor: AppColors.panel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: AppColors.softAccent,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'V',
+                            child: Text('V - Cédula'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'P',
+                            child: Text('P - Pasaporte'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _tipoDocumento = value;
+                          });
+                          _formKey.currentState?.validate();
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cedulaController,
+                      keyboardType: _tipoDocumento == 'V'
+                          ? TextInputType.number
+                          : TextInputType.text,
+                      style: const TextStyle(color: Colors.white),
+                      validator: (value) {
+                        final documento = value?.trim() ?? '';
+                        if (documento.isEmpty) {
+                          return _tipoDocumento == 'V'
+                              ? 'Ingresa tu cédula'
+                              : 'Ingresa tu pasaporte';
+                        }
+                        final isValid = _tipoDocumento == 'V'
+                            ? RegExp(r'^\d{5,12}$').hasMatch(documento)
+                            : RegExp(r'^[A-Za-z0-9]{5,20}$')
+                                  .hasMatch(documento);
+                        if (!isValid) {
+                          return _tipoDocumento == 'V'
+                              ? 'Ingresa una cédula válida (5 a 12 dígitos)'
+                              : 'Ingresa un pasaporte válido (5 a 20 letras o números)';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        hintText: _tipoDocumento == 'V'
+                            ? 'Número de Cédula'
+                            : 'Número de Pasaporte',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: AppColors.panel,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.softAccent,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.softAccent,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.neonAccent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
 
