@@ -377,7 +377,7 @@ async function runAdminAction(
       { data: payments, error: paymentsError },
     ] = await Promise.all([
       client.from("cursos").select("id,nombre_curso,estado,profesor_id").order("nombre_curso"),
-      client.from("alumnos").select("user_id,nombre_completo,cedula,correo,telefono,curso_id").order("nombre_completo"),
+      client.from("alumnos").select("user_id,nombre_completo,cedula,correo,telefono,curso_id,registrado_en_app").order("nombre_completo"),
       client
         .from("pagos")
         .select("id,user_id,encuesta_id,monto_aporte,imagen_url,estado,created_at,alumnos(nombre_completo),encuestas_participacion(clase_futura_fecha,cursos(nombre_curso))")

@@ -17,12 +17,158 @@ CREATE TABLE IF NOT EXISTS public.accesos_pin (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE public.accesos_pin
+  ADD COLUMN IF NOT EXISTS modulo TEXT,
+  ADD COLUMN IF NOT EXISTS profesor_id UUID REFERENCES public.perfiles(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS pin_hash TEXT,
+  ADD COLUMN IF NOT EXISTS pin_lookup_hash TEXT,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+UPDATE public.accesos_pin AS acceso
+SET modulo = COALESCE(acceso.modulo, NULLIF(TO_JSONB(acceso) ->> 'rol', '')),
+    pin_hash = COALESCE(
+      acceso.pin_hash,
+      CASE
+        WHEN NULLIF(TO_JSONB(acceso) ->> 'pin', '') IS NOT NULL
+          THEN extensions.crypt(
+            TO_JSONB(acceso) ->> 'pin',
+            extensions.gen_salt('bf')
+          )
+        ELSE NULL
+      END
+    ),
+    pin_lookup_hash = COALESCE(
+      acceso.pin_lookup_hash,
+      CASE
+        WHEN NULLIF(TO_JSONB(acceso) ->> 'pin', '') IS NOT NULL
+          THEN ENCODE(
+            extensions.digest(
+              CONVERT_TO(TO_JSONB(acceso) ->> 'pin', 'UTF8'),
+              'sha256'
+            ),
+            'hex'
+          )
+        ELSE NULL
+      END
+    ),
+    profesor_id = COALESCE(
+      acceso.profesor_id,
+      (
+        SELECT (ARRAY_AGG(perfil.id ORDER BY perfil.id))[1]
+        FROM public.perfiles AS perfil
+        WHERE LOWER(BTRIM(COALESCE(
+            TO_JSONB(perfil) ->> 'nombre_completo',
+            TO_JSONB(perfil) ->> 'nombre',
+            TO_JSONB(perfil) ->> 'full_name',
+            TO_JSONB(perfil) ->> 'name',
+            ''
+          ))) = LOWER(BTRIM(COALESCE(
+            TO_JSONB(acceso) ->> 'nombre',
+            ''
+          )))
+          AND LOWER(BTRIM(COALESCE(
+            TO_JSONB(perfil) ->> 'role',
+            TO_JSONB(perfil) ->> 'rol',
+            ''
+          ))) IN (
+            CASE
+              WHEN COALESCE(acceso.modulo, TO_JSONB(acceso) ->> 'rol')
+                   = 'profesor' THEN 'profesor'
+              ELSE 'administrador'
+            END,
+            CASE
+              WHEN COALESCE(acceso.modulo, TO_JSONB(acceso) ->> 'rol')
+                   = 'profesor' THEN 'docente'
+              ELSE 'admin'
+            END,
+            CASE
+              WHEN COALESCE(acceso.modulo, TO_JSONB(acceso) ->> 'rol')
+                   = 'profesor' THEN 'profesor'
+              ELSE 'super_admin'
+            END,
+            CASE
+              WHEN COALESCE(acceso.modulo, TO_JSONB(acceso) ->> 'rol')
+                   = 'profesor' THEN 'profesor'
+              ELSE 'super-admin'
+            END
+          )
+        HAVING COUNT(*) = 1
+      )
+    ),
+    updated_at = COALESCE(acceso.updated_at, NOW());
+
+UPDATE public.accesos_pin
+SET activo = FALSE
+WHERE modulo NOT IN ('profesor', 'administrador')
+   OR pin_hash IS NULL
+   OR (modulo = 'profesor' AND profesor_id IS NULL)
+   OR (modulo = 'administrador' AND profesor_id IS NULL);
+
+DELETE FROM public.accesos_pin
+WHERE pin_hash IS NULL;
+
+WITH duplicate_profiles AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY modulo, profesor_id
+           ORDER BY id
+         ) AS duplicate_number
+  FROM public.accesos_pin
+  WHERE profesor_id IS NOT NULL
+)
+UPDATE public.accesos_pin AS acceso
+SET profesor_id = NULL,
+    activo = FALSE
+FROM duplicate_profiles AS duplicate
+WHERE duplicate.id = acceso.id
+  AND duplicate.duplicate_number > 1;
+
+WITH duplicate_pins AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY modulo, pin_lookup_hash
+           ORDER BY id
+         ) AS duplicate_number
+  FROM public.accesos_pin
+  WHERE pin_lookup_hash IS NOT NULL
+)
+UPDATE public.accesos_pin AS acceso
+SET pin_lookup_hash = NULL,
+    activo = FALSE
+FROM duplicate_pins AS duplicate
+WHERE duplicate.id = acceso.id
+  AND duplicate.duplicate_number > 1;
+
+ALTER TABLE public.accesos_pin
+  DROP COLUMN IF EXISTS nombre,
+  DROP COLUMN IF EXISTS rol,
+  DROP COLUMN IF EXISTS pin;
+
+ALTER TABLE public.accesos_pin
+  ALTER COLUMN modulo SET NOT NULL,
+  ALTER COLUMN pin_hash SET NOT NULL;
+
+ALTER TABLE public.accesos_pin
+  DROP CONSTRAINT IF EXISTS accesos_pin_module_identity_check;
+ALTER TABLE public.accesos_pin
+  ADD CONSTRAINT accesos_pin_module_identity_check CHECK (
+    (modulo = 'profesor' AND (profesor_id IS NOT NULL OR NOT activo))
+    OR (
+      modulo = 'administrador'
+      AND (
+        profesor_id IS NOT NULL
+        OR (profesor_id IS NULL AND NOT activo)
+      )
+    )
+  );
+
 CREATE UNIQUE INDEX IF NOT EXISTS accesos_pin_teacher_uidx
   ON public.accesos_pin (profesor_id)
   WHERE modulo = 'profesor';
 CREATE UNIQUE INDEX IF NOT EXISTS accesos_pin_admin_uidx
-  ON public.accesos_pin (modulo)
-  WHERE modulo = 'administrador';
+  ON public.accesos_pin (profesor_id)
+  WHERE modulo = 'administrador'
+    AND profesor_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.accesos_pin_intentos (
   client_hash TEXT NOT NULL,
@@ -88,7 +234,26 @@ BEGIN
   WHERE modulo = p_modulo
     AND activo
     AND (
-      (p_modulo = 'administrador' AND profesor_id IS NULL)
+      (
+        p_modulo = 'administrador'
+        AND profesor_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM public.perfiles AS perfil
+          WHERE perfil.id = accesos_pin.profesor_id
+            AND LOWER(BTRIM(COALESCE(
+              TO_JSONB(perfil) ->> 'role',
+              TO_JSONB(perfil) ->> 'rol',
+              ''
+            ))) IN (
+              'administrador',
+              'admin',
+              'super_admin',
+              'super-admin'
+            )
+        )
+        AND extensions.crypt(p_pin, pin_hash) = pin_hash
+      )
       OR (
         p_modulo = 'profesor'
         AND profesor_id IS NOT NULL
@@ -96,7 +261,11 @@ BEGIN
           SELECT 1
           FROM public.perfiles AS perfil
           WHERE perfil.id = accesos_pin.profesor_id
-            AND LOWER(perfil.rol) = 'profesor'
+            AND LOWER(BTRIM(COALESCE(
+              TO_JSONB(perfil) ->> 'role',
+              TO_JSONB(perfil) ->> 'rol',
+              ''
+            ))) IN ('profesor', 'docente')
         )
         AND extensions.crypt(p_pin, pin_hash) = pin_hash
       )

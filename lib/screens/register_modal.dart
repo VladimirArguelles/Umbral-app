@@ -21,6 +21,7 @@ class _RegisterModalState extends State<RegisterModal> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -37,13 +38,42 @@ class _RegisterModalState extends State<RegisterModal> {
     setState(() => _isLoading = true);
 
     try {
+      final cedulaInput = _cedulaController.text.trim();
+      final emailInput = _emailController.text.trim();
+      final passwordInput = _passwordController.text;
+      final nameInput = _nameController.text.trim();
+      final phoneInput = _normalizePhone(_phoneController.text);
+
+      final preRegistrationIsValid = await Supabase.instance.client.rpc(
+        'validar_preinscripcion_alumno',
+        params: {'p_cedula': cedulaInput, 'p_correo': emailInput},
+      );
+
+      if (preRegistrationIsValid is! bool) {
+        throw const FormatException(
+          'La validación de preinscripción devolvió una respuesta no válida.',
+        );
+      }
+      if (!preRegistrationIsValid) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'No se encontró una preinscripción disponible para esos datos.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
       final response = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: emailInput,
+        password: passwordInput,
         data: {
-          'full_name': _nameController.text.trim(),
-          'cedula': _cedulaController.text.trim(),
-          'phone': '+58${_phoneController.text.trim()}',
+          'full_name': nameInput,
+          'cedula': cedulaInput,
+          'phone': phoneInput,
         },
       );
 
@@ -66,8 +96,8 @@ class _RegisterModalState extends State<RegisterModal> {
         SnackBar(
           content: Text(
             response.session == null
-                ? 'Cuenta y datos de alumno guardados. Revisa tu correo para confirmar el registro.'
-                : '¡Registro exitoso! Se guardaron tus datos de alumno.',
+                ? 'Cuenta pre-inscrita validada. Revisa tu correo para confirmar el registro.'
+                : '¡Registro exitoso! Se ha vinculado tu cuenta de alumna.',
           ),
         ),
       );
@@ -87,7 +117,11 @@ class _RegisterModalState extends State<RegisterModal> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error de conexión durante el registro: $error'),
+          content: Text(
+            error is FormatException
+                ? error.message
+                : 'Error de conexión durante el registro: $error',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -137,7 +171,10 @@ class _RegisterModalState extends State<RegisterModal> {
                       SizedBox(height: 4),
                       Text(
                         'Crea tu cuenta en la plataforma',
-                        style: TextStyle(color: AppColors.softAccent, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.softAccent,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -159,13 +196,24 @@ class _RegisterModalState extends State<RegisterModal> {
               ),
               const SizedBox(height: 14),
 
+              // Campo: Cédula
               _buildTextField(
                 label: 'Cédula',
                 hint: 'Ingresa tu número de cédula...',
                 icon: Icons.badge_outlined,
                 controller: _cedulaController,
-                keyboardType: TextInputType.number,
-                validator: (value) => _requiredField(value, 'cédula'),
+                keyboardType: TextInputType.text,
+                validator: (value) {
+                  final cedula = value?.trim() ?? '';
+                  if (cedula.isEmpty) return 'Ingresa tu cédula';
+                  if (!RegExp(
+                    r'^[VEJG]?[\s.-]*\d{5,12}$',
+                    caseSensitive: false,
+                  ).hasMatch(cedula)) {
+                    return 'Ingresa una cédula válida';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
 
@@ -201,7 +249,17 @@ class _RegisterModalState extends State<RegisterModal> {
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       style: const TextStyle(color: Colors.white),
-                      validator: (value) => _requiredField(value, 'teléfono'),
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Ingresa tu teléfono';
+                        }
+                        try {
+                          _normalizePhone(value!);
+                        } on FormatException {
+                          return 'Ingresa un teléfono venezolano válido';
+                        }
+                        return null;
+                      },
                       decoration: InputDecoration(
                         hintText: 'Número de Teléfono',
                         hintStyle: const TextStyle(color: Colors.white54),
@@ -209,11 +267,15 @@ class _RegisterModalState extends State<RegisterModal> {
                         fillColor: AppColors.panel,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.softAccent),
+                          borderSide: const BorderSide(
+                            color: AppColors.softAccent,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.softAccent),
+                          borderSide: const BorderSide(
+                            color: AppColors.softAccent,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -447,5 +509,19 @@ class _RegisterModalState extends State<RegisterModal> {
       return 'Ingresa tu $label';
     }
     return null;
+  }
+
+  String _normalizePhone(String value) {
+    var digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('58')) {
+      digits = digits.substring(2);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    if (!RegExp(r'^\d{10}$').hasMatch(digits)) {
+      throw const FormatException('Invalid Venezuelan phone number.');
+    }
+    return '+58$digits';
   }
 }

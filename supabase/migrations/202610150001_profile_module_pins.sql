@@ -11,7 +11,10 @@ ALTER TABLE public.accesos_pin
 
 ALTER TABLE public.accesos_pin
   ADD CONSTRAINT accesos_pin_module_identity_check CHECK (
-    (modulo = 'profesor' AND profesor_id IS NOT NULL)
+    (
+      modulo = 'profesor'
+      AND (profesor_id IS NOT NULL OR NOT activo)
+    )
     OR (
       modulo = 'administrador'
       AND (
@@ -109,7 +112,6 @@ BEGIN
       role_name,
       REGEXP_REPLACE(LOWER(BTRIM(COALESCE(
         profile_data ->> 'nombres',
-        profile_data ->> 'nombre',
         profile_data ->> 'first_name',
         profile_data ->> 'first_names',
         ''
@@ -123,6 +125,7 @@ BEGIN
       ))), '\s+', ' ', 'g') AS last_names,
       REGEXP_REPLACE(LOWER(BTRIM(COALESCE(
         profile_data ->> 'nombre_completo',
+        profile_data ->> 'nombre',
         profile_data ->> 'nombres_y_apellidos',
         profile_data ->> 'full_name',
         profile_data ->> 'name',
@@ -137,7 +140,12 @@ BEGIN
       (p_modulo = 'profesor' AND role_name = 'profesor')
       OR (
         p_modulo = 'administrador'
-        AND role_name IN ('administrador', 'admin')
+        AND role_name IN (
+          'administrador',
+          'admin',
+          'super_admin',
+          'super-admin'
+        )
       )
     )
     AND (
@@ -182,7 +190,6 @@ BEGIN
       role_name,
       REGEXP_REPLACE(LOWER(BTRIM(COALESCE(
         profile_data ->> 'nombres',
-        profile_data ->> 'nombre',
         profile_data ->> 'first_name',
         profile_data ->> 'first_names',
         ''
@@ -196,6 +203,7 @@ BEGIN
       ))), '\s+', ' ', 'g') AS last_names,
       REGEXP_REPLACE(LOWER(BTRIM(COALESCE(
         profile_data ->> 'nombre_completo',
+        profile_data ->> 'nombre',
         profile_data ->> 'nombres_y_apellidos',
         profile_data ->> 'full_name',
         profile_data ->> 'name',
@@ -210,7 +218,12 @@ BEGIN
       (p_modulo = 'profesor' AND role_name = 'profesor')
       OR (
         p_modulo = 'administrador'
-        AND role_name IN ('administrador', 'admin')
+        AND role_name IN (
+          'administrador',
+          'admin',
+          'super_admin',
+          'super-admin'
+        )
       )
     )
     AND (
@@ -332,11 +345,24 @@ BEGIN
     AND (
       (
         p_modulo = 'profesor'
-        AND LOWER(BTRIM(perfil.rol)) = 'profesor'
+        AND LOWER(BTRIM(COALESCE(
+          TO_JSONB(perfil) ->> 'role',
+          TO_JSONB(perfil) ->> 'rol',
+          ''
+        ))) IN ('profesor', 'docente')
       )
       OR (
         p_modulo = 'administrador'
-        AND LOWER(BTRIM(perfil.rol)) IN ('administrador', 'admin')
+        AND LOWER(BTRIM(COALESCE(
+          TO_JSONB(perfil) ->> 'role',
+          TO_JSONB(perfil) ->> 'rol',
+          ''
+        ))) IN (
+          'administrador',
+          'admin',
+          'super_admin',
+          'super-admin'
+        )
       )
     )
     AND (

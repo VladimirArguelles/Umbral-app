@@ -31,8 +31,12 @@ en lugar de cerrarse silenciosamente.
 
 Los alumnos se registran e inician sesión con correo y contraseña. El registro
 envía nombre, cédula y teléfono a Supabase Auth. La migración
-`202610140002_link_student_on_signup.sql` vincula `auth.users.id` con
-`alumnos.user_id` mediante la cédula; si todavía no existe la fila, la crea.
+`202610190001_student_pre_registration.sql` instala la validación de
+preinscripción y exige una fila administrativa de `alumnos` sin cuenta previa.
+La función solo devuelve si cédula y correo coinciden; el trigger vincula la
+cuenta en el servidor y comprueba de nuevo que el registro siga disponible.
+La app no intenta actualizar `alumnos` directamente después del registro, por
+lo que el flujo también funciona cuando Supabase requiere confirmar el correo.
 La migración `202610140003_student_data_policies.sql` aplica las políticas RLS
 para que cada alumno consulte y actualice únicamente sus datos y comprobantes.
 El formulario de inicio envía un enlace de recuperación al correo registrado.
@@ -41,16 +45,23 @@ Al abrirlo, el alumno puede definir una contraseña nueva.
 ## Acceso de profesores y administradores
 
 Ejecuta todas las migraciones SQL de `supabase/migrations` en orden desde el SQL
-Editor del proyecto Supabase. La migración
-`202610140001_module_access_pin.sql` crea `accesos_pin`; los PIN de profesores
-y administradores son individuales y se vinculan a `perfiles.id`. Los PIN se
-almacenan como hashes bcrypt y la tabla no es consultable desde la app.
+Editor del proyecto Supabase. El esquema base puede usar `perfiles.role` y la
+tabla `accesos_pin(nombre, rol, pin)`: las migraciones admiten esa forma, la
+convierten a `accesos_pin(modulo, profesor_id, pin_hash, pin_lookup_hash)` y
+eliminan la columna de PIN en texto plano. Los PIN de profesores y
+administradores se vinculan individualmente a `perfiles.id`, se almacenan como
+hashes bcrypt y la tabla no es consultable desde la app. Los registros de PIN
+que no se puedan asociar inequívocamente por nombre y rol quedan desactivados;
+deben configurarse de nuevo para el perfil correspondiente.
 
 La migración `202610170001_role_based_access.sql` crea los roles `alumno`,
 `profesor` y `administrador`, y la relación `usuario_roles`. Migra los roles
-existentes de `perfiles.rol`, asigna `alumno` a las cuentas de alumnos y a las
-cuentas nuevas, y restringe las consultas del cliente mediante RLS. Los alumnos
-solo pueden consultar sus propios datos y los cursos en los que están inscritos.
+existentes de `perfiles.role` (o `perfiles.rol`), asigna `alumno` a las cuentas
+de alumnos y a las cuentas nuevas, y restringe las consultas del cliente
+mediante RLS. `super_admin` y `super-admin` se traducen al rol administrativo
+interno. Los alumnos solo pueden consultar sus propios datos y los cursos en
+los que están inscritos. La migración añade a `cursos` los campos `estado` y
+`descripcion` que consumen los paneles.
 El acceso docente sigue limitado a cursos asociados al perfil vinculado al PIN;
 las operaciones del administrador requieren el rol `administrador`.
 
@@ -72,23 +83,35 @@ Para retirar un rol, elimina únicamente la asignación correspondiente de
 Después de aplicar las migraciones y asignar los roles, configura los PIN
 individuales de profesores y administradores desde el SQL Editor. Sustituye
 los valores de ejemplo por PIN nuevos; no los guardes en el código ni en el
-repositorio:
+repositorio. Incluye la huella SHA-256 que usa el índice de búsqueda:
 
-```powershell
-INSERT INTO public.accesos_pin (modulo, profesor_id, pin_hash)
-VALUES (
-  'profesor',
-  'UUID_DEL_PERFIL_DOCENTE',
-  extensions.crypt('PIN_DOCENTE_NUEVO', extensions.gen_salt('bf'))
-);
-
-INSERT INTO public.accesos_pin (modulo, profesor_id, pin_hash)
-VALUES (
-  'administrador',
-  'UUID_DEL_PERFIL_ADMIN',
-  extensions.crypt('PIN_ADMIN_NUEVO', extensions.gen_salt('bf'))
-);
+```sql
+INSERT INTO public.accesos_pin (
+  modulo, profesor_id, pin_hash, pin_lookup_hash, activo
+)
+VALUES
+  (
+    'profesor',
+    'UUID_DEL_PERFIL_DOCENTE',
+    extensions.crypt('PIN_DOCENTE_NUEVO', extensions.gen_salt('bf')),
+    encode(extensions.digest(convert_to('PIN_DOCENTE_NUEVO', 'UTF8'), 'sha256'), 'hex'),
+    TRUE
+  ),
+  (
+    'administrador',
+    'UUID_DEL_PERFIL_ADMIN',
+    extensions.crypt('PIN_ADMIN_NUEVO', extensions.gen_salt('bf')),
+    encode(extensions.digest(convert_to('PIN_ADMIN_NUEVO', 'UTF8'), 'sha256'), 'hex'),
+    TRUE
+  );
 ```
+
+La app actual autentica alumnos con correo y contraseña; `perfiles.pin_acceso`
+no forma parte de ese flujo y no se expone con permisos de lectura al cliente.
+No lo uses para autenticar alumnos hasta implementar una verificación segura
+del PIN en el servidor. Las columnas `user_id` de asistencia, respuestas y
+pagos se agregan como enlaces a `auth.users` y se sincronizan con `alumno_id`,
+para mantener compatibilidad con el SQL base y las políticas RLS de la app.
 
 Despliega la función que valida los PIN con límite de intentos:
 

@@ -214,6 +214,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               '${student['correo'] ?? ''} · Cédula ${student['cedula'] ?? ''}',
                             ),
+                            Text(
+                              student['registrado_en_app'] == true
+                                  ? 'Cuenta vinculada'
+                                  : 'Preinscrito · Sin cuenta vinculada',
+                            ),
                             DropdownButtonFormField<String>(
                               initialValue:
                                   _courses.any(

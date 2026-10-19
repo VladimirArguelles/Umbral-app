@@ -168,6 +168,46 @@ void main() {
     expect(find.text('Username'), findsNothing);
   });
 
+  testWidgets('student registration rejects an invalid national ID', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: RegisterModal())),
+    );
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'María Pérez');
+    await tester.enterText(fields.at(1), 'V-123');
+    await tester.enterText(fields.at(2), '04121234567');
+    await tester.enterText(fields.at(3), 'maria@example.com');
+    await tester.enterText(fields.at(4), 'password123');
+    await tester.ensureVisible(find.text('REGISTRARSE'));
+    await tester.tap(find.text('REGISTRARSE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ingresa una cédula válida'), findsOneWidget);
+  });
+
+  testWidgets('student registration rejects an invalid phone number', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: RegisterModal())),
+    );
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'María Pérez');
+    await tester.enterText(fields.at(1), 'V-12345678');
+    await tester.enterText(fields.at(2), '123');
+    await tester.enterText(fields.at(3), 'maria@example.com');
+    await tester.enterText(fields.at(4), 'password123');
+    await tester.ensureVisible(find.text('REGISTRARSE'));
+    await tester.tap(find.text('REGISTRARSE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ingresa un teléfono venezolano válido'), findsOneWidget);
+  });
+
   testWidgets('student dashboard shows formation modules and opens courses', (
     WidgetTester tester,
   ) async {

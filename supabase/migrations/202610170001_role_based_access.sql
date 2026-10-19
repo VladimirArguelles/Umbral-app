@@ -82,6 +82,8 @@ JOIN public.roles AS rol
   ON rol.codigo = CASE perfil.codigo_legacy
     WHEN 'admin' THEN 'administrador'
     WHEN 'administrador' THEN 'administrador'
+    WHEN 'super_admin' THEN 'administrador'
+    WHEN 'super-admin' THEN 'administrador'
     WHEN 'profesor' THEN 'profesor'
     WHEN 'docente' THEN 'profesor'
     WHEN 'alumno' THEN 'alumno'
@@ -186,6 +188,8 @@ DROP POLICY IF EXISTS "Students read enrolled participation surveys"
 CREATE POLICY "Students read enrolled participation surveys"
   ON public.encuestas_participacion FOR SELECT TO authenticated
   USING (
+    activa
+    AND
     (SELECT public.tiene_rol('alumno'))
     AND EXISTS (
       SELECT 1 FROM public.alumnos
@@ -215,6 +219,7 @@ CREATE POLICY "Students answer enrolled surveys"
       FROM public.encuestas_participacion AS survey
       JOIN public.alumnos AS student ON student.curso_id = survey.curso_id
       WHERE survey.id = respuestas_encuesta.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
     )
   );
@@ -235,6 +240,7 @@ CREATE POLICY "Students update own survey answers"
       FROM public.encuestas_participacion AS survey
       JOIN public.alumnos AS student ON student.curso_id = survey.curso_id
       WHERE survey.id = respuestas_encuesta.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
     )
   );
@@ -260,6 +266,7 @@ CREATE POLICY "Students submit own payments"
       FROM public.encuestas_participacion AS survey
       JOIN public.alumnos AS student ON student.curso_id = survey.curso_id
       WHERE survey.id = pagos.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
         AND pagos.monto_aporte = survey.monto_aporte_individual
     )
@@ -284,6 +291,7 @@ CREATE POLICY "Students update own unreviewed payments"
       FROM public.encuestas_participacion AS survey
       JOIN public.alumnos AS student ON student.curso_id = survey.curso_id
       WHERE survey.id = pagos.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
         AND pagos.monto_aporte = survey.monto_aporte_individual
     )

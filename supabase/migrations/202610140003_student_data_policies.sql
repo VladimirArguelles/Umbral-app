@@ -1,3 +1,92 @@
+ALTER TABLE public.asistencia
+  ADD COLUMN IF NOT EXISTS user_id UUID
+    REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.respuestas_encuesta
+  ADD COLUMN IF NOT EXISTS user_id UUID
+    REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.pagos
+  ADD COLUMN IF NOT EXISTS user_id UUID
+    REFERENCES auth.users(id) ON DELETE CASCADE;
+
+UPDATE public.asistencia AS asistencia
+SET user_id = alumno.user_id
+FROM public.alumnos AS alumno
+WHERE asistencia.alumno_id = alumno.id
+  AND asistencia.user_id IS NULL
+  AND alumno.user_id IS NOT NULL;
+
+UPDATE public.respuestas_encuesta AS respuesta
+SET user_id = alumno.user_id
+FROM public.alumnos AS alumno
+WHERE respuesta.alumno_id = alumno.id
+  AND respuesta.user_id IS NULL
+  AND alumno.user_id IS NOT NULL;
+
+UPDATE public.pagos AS pago
+SET user_id = alumno.user_id
+FROM public.alumnos AS alumno
+WHERE pago.alumno_id = alumno.id
+  AND pago.user_id IS NULL
+  AND alumno.user_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.sync_student_user_reference()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  matched_student_id UUID;
+  matched_user_id UUID;
+BEGIN
+  IF NEW.user_id IS NOT NULL THEN
+    SELECT alumno.id, alumno.user_id
+      INTO matched_student_id, matched_user_id
+    FROM public.alumnos AS alumno
+    WHERE alumno.user_id = NEW.user_id;
+
+    IF matched_student_id IS NULL THEN
+      RAISE EXCEPTION 'The user is not linked to a student record';
+    END IF;
+    IF NEW.alumno_id IS NOT NULL AND NEW.alumno_id <> matched_student_id THEN
+      RAISE EXCEPTION 'The student and user references do not match';
+    END IF;
+    NEW.alumno_id := matched_student_id;
+  ELSIF NEW.alumno_id IS NOT NULL THEN
+    SELECT alumno.user_id
+      INTO matched_user_id
+    FROM public.alumnos AS alumno
+    WHERE alumno.id = NEW.alumno_id;
+    NEW.user_id := matched_user_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sync_student_user_reference()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS sync_asistencia_student_reference
+  ON public.asistencia;
+CREATE TRIGGER sync_asistencia_student_reference
+  BEFORE INSERT OR UPDATE ON public.asistencia
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_student_user_reference();
+
+DROP TRIGGER IF EXISTS sync_respuestas_encuesta_student_reference
+  ON public.respuestas_encuesta;
+CREATE TRIGGER sync_respuestas_encuesta_student_reference
+  BEFORE INSERT OR UPDATE ON public.respuestas_encuesta
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_student_user_reference();
+
+DROP TRIGGER IF EXISTS sync_pagos_student_reference
+  ON public.pagos;
+CREATE TRIGGER sync_pagos_student_reference
+  BEFORE INSERT OR UPDATE ON public.pagos
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_student_user_reference();
+
 CREATE UNIQUE INDEX IF NOT EXISTS respuestas_encuesta_user_survey_uidx
   ON public.respuestas_encuesta (user_id, encuesta_id);
 CREATE UNIQUE INDEX IF NOT EXISTS pagos_user_survey_uidx
@@ -27,6 +116,8 @@ GRANT UPDATE (participara) ON public.respuestas_encuesta TO authenticated;
 GRANT UPDATE (imagen_url, monto_aporte, estado)
   ON public.pagos TO authenticated;
 GRANT DELETE ON public.pagos TO authenticated;
+
+REVOKE SELECT ON TABLE public.perfiles FROM PUBLIC, anon, authenticated;
 
 DROP POLICY IF EXISTS "Users read own profile" ON public.perfiles;
 CREATE POLICY "Users read own profile"
@@ -69,11 +160,14 @@ DROP POLICY IF EXISTS "Students read enrolled participation surveys"
   ON public.encuestas_participacion;
 CREATE POLICY "Students read enrolled participation surveys"
   ON public.encuestas_participacion FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.alumnos
-    WHERE alumnos.user_id = (SELECT auth.uid())
-      AND alumnos.curso_id = encuestas_participacion.curso_id
-  ));
+  USING (
+    activa
+    AND EXISTS (
+      SELECT 1 FROM public.alumnos
+      WHERE alumnos.user_id = (SELECT auth.uid())
+        AND alumnos.curso_id = encuestas_participacion.curso_id
+    )
+  );
 
 DROP POLICY IF EXISTS "Students read own survey responses"
   ON public.respuestas_encuesta;
@@ -93,6 +187,7 @@ CREATE POLICY "Students answer enrolled surveys"
       JOIN public.alumnos AS student
         ON student.curso_id = survey.curso_id
       WHERE survey.id = respuestas_encuesta.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
     )
   );
@@ -110,6 +205,7 @@ CREATE POLICY "Students update own survey answers"
       JOIN public.alumnos AS student
         ON student.curso_id = survey.curso_id
       WHERE survey.id = respuestas_encuesta.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
     )
   );
@@ -132,6 +228,7 @@ CREATE POLICY "Students submit own payments"
       JOIN public.alumnos AS student
         ON student.curso_id = survey.curso_id
       WHERE survey.id = pagos.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
         AND pagos.monto_aporte = survey.monto_aporte_individual
     )
@@ -155,6 +252,7 @@ CREATE POLICY "Students update own unreviewed payments"
       JOIN public.alumnos AS student
         ON student.curso_id = survey.curso_id
       WHERE survey.id = pagos.encuesta_id
+        AND survey.activa
         AND student.user_id = (SELECT auth.uid())
         AND pagos.monto_aporte = survey.monto_aporte_individual
     )

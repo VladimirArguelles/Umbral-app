@@ -59,6 +59,7 @@ class _StudentSurveysScreenState extends State<StudentSurveysScreen> {
                       'id,curso_id,clase_futura_fecha,costo_total_insumos,monto_aporte_individual,created_at',
                     )
                     .eq('curso_id', courseId)
+                    .eq('activa', true)
                     .order('clase_futura_fecha'))
                 .cast<Map<String, dynamic>>();
       final answerRows = await client
@@ -211,9 +212,10 @@ class _StudentSurveysScreenState extends State<StudentSurveysScreen> {
           'imagen_url': filePath,
           'estado': 'pendiente',
         });
-      } else if (['pendiente', 'rechazado'].contains(
-        existingPayment['estado'],
-      )) {
+      } else if ([
+        'pendiente',
+        'rechazado',
+      ].contains(existingPayment['estado'])) {
         await client
             .from('pagos')
             .update({

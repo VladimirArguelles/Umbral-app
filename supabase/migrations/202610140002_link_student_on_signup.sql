@@ -5,6 +5,11 @@ DROP FUNCTION IF EXISTS public.create_student_row_for_auth_user();
 CREATE UNIQUE INDEX IF NOT EXISTS alumnos_user_id_uidx
   ON public.alumnos(user_id);
 
+UPDATE public.alumnos
+SET registrado_en_app = TRUE
+WHERE user_id IS NOT NULL
+  AND registrado_en_app IS DISTINCT FROM TRUE;
+
 CREATE OR REPLACE FUNCTION public.vincular_alumno_existente()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -53,7 +58,8 @@ BEGIN
       cedula,
       correo,
       telefono,
-      curso_id
+      curso_id,
+      registrado_en_app
     )
     VALUES (
       NEW.id,
@@ -61,7 +67,8 @@ BEGIN
       student_cedula,
       COALESCE(NEW.email, ''),
       COALESCE(NEW.raw_user_meta_data ->> 'phone', ''),
-      NULL
+      NULL,
+      TRUE
     );
   ELSE
     UPDATE public.alumnos
@@ -74,7 +81,8 @@ BEGIN
         telefono = COALESCE(
           NULLIF(NEW.raw_user_meta_data ->> 'phone', ''),
           telefono
-        )
+        ),
+        registrado_en_app = TRUE
     WHERE id = existing_alumno_id;
   END IF;
 

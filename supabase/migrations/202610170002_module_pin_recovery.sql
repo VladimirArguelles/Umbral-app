@@ -32,11 +32,19 @@ BEGIN
       AND (
         (
           p_modulo = 'profesor'
-          AND LOWER(BTRIM(perfil.rol)) IN ('profesor', 'docente')
+          AND LOWER(BTRIM(COALESCE(
+            TO_JSONB(perfil) ->> 'role',
+            TO_JSONB(perfil) ->> 'rol',
+            ''
+          ))) IN ('profesor', 'docente')
         )
         OR (
           p_modulo = 'administrador'
-          AND LOWER(BTRIM(perfil.rol)) IN ('administrador', 'admin')
+          AND LOWER(BTRIM(COALESCE(
+            TO_JSONB(perfil) ->> 'role',
+            TO_JSONB(perfil) ->> 'rol',
+            ''
+          ))) IN ('administrador', 'admin', 'super_admin', 'super-admin')
         )
       )
   ) THEN

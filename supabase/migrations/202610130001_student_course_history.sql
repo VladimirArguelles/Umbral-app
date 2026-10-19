@@ -1,6 +1,25 @@
 CREATE UNIQUE INDEX IF NOT EXISTS alumnos_user_id_uidx
   ON public.alumnos(user_id);
 
+ALTER TABLE public.cursos
+  ADD COLUMN IF NOT EXISTS descripcion TEXT,
+  ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'activo';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.cursos'::regclass
+      AND conname = 'cursos_estado_check'
+  ) THEN
+    ALTER TABLE public.cursos
+      ADD CONSTRAINT cursos_estado_check
+      CHECK (estado IN ('activo', 'finalizado'));
+  END IF;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS public.historial_cursos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.alumnos(user_id) ON DELETE CASCADE,
