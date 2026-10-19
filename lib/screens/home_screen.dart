@@ -24,32 +24,39 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final StreamSubscription<AuthState> _authSubscription;
-  String _welcomeName = 'alumna';
+  User? _currentUser;
+  String? _welcomeName;
 
   @override
   void initState() {
     super.initState();
     final auth = Supabase.instance.client.auth;
-    _updateWelcomeName(auth.currentUser?.userMetadata, auth.currentUser?.email);
+    _currentUser = auth.currentUser;
+    _updateWelcomeName(_currentUser);
+
     _authSubscription = auth.onAuthStateChange.listen((state) {
-      final user = state.session?.user;
-      _updateWelcomeName(user?.userMetadata, user?.email);
+      if (!mounted) return;
+      setState(() {
+        _currentUser = state.session?.user;
+        _updateWelcomeName(_currentUser);
+      });
     });
   }
 
-  void _updateWelcomeName(Map<String, dynamic>? metadata, String? email) {
+  void _updateWelcomeName(User? user) {
+    if (user == null) {
+      _welcomeName = null;
+      return;
+    }
+    final metadata = user.userMetadata;
     final candidates = [
       metadata?['full_name']?.toString().trim(),
-      email?.split('@').first.trim(),
+      user.email?.split('@').first.trim(),
     ];
-    final name = candidates.firstWhere(
+    _welcomeName = candidates.firstWhere(
       (candidate) => candidate != null && candidate.isNotEmpty,
-      orElse: () => 'alumna',
+      orElse: () => user.email ?? 'Usuario',
     );
-
-    if (mounted && _welcomeName != name) {
-      setState(() => _welcomeName = name!);
-    }
   }
 
   @override
@@ -158,23 +165,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Center(
-                    child: TextButton(
-                      onPressed: _showLoginRegister,
-                      style: TextButton.styleFrom(
-                        foregroundColor: _landingPink,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 10,
+                  if (_currentUser == null)
+                    Center(
+                      child: TextButton(
+                        onPressed: _showLoginRegister,
+                        style: TextButton.styleFrom(
+                          foregroundColor: _landingPink,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: const Text(
+                          '¿Aún no tienes una cuenta? Regístrate o inicia sesión',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14),
                         ),
                       ),
-                      child: const Text(
-                        '¿Aún no tienes una cuenta? Regístrate o inicia sesión',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14),
-                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -208,20 +216,38 @@ class _HomeScreenState extends State<HomeScreen> {
             semanticLabel: 'UMBRAL',
           ),
           const Spacer(),
-          TextButton(
-            onPressed: _showLoginRegister,
-            style: TextButton.styleFrom(foregroundColor: _landingPink),
-            child: const Text(
-              'Entrar',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          if (_currentUser == null)
+            TextButton(
+              onPressed: _showLoginRegister,
+              style: TextButton.styleFrom(foregroundColor: _landingPink),
+              child: const Text(
+                'Entrar',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            )
+          else
+            TextButton.icon(
+              onPressed: () async {
+                await Supabase.instance.client.auth.signOut();
+              },
+              icon: const Icon(Icons.logout, size: 18, color: _landingPink),
+              label: const Text(
+                'Salir',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _landingPink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildWelcomePanel() {
+    final bool isLoggedIn = _currentUser != null;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -244,25 +270,40 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RichText(
-            text: TextSpan(
-              style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-              children: [
-                const TextSpan(
-                  text: '¡Hola ',
-                  style: TextStyle(color: Colors.white),
+          if (isLoggedIn)
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w700,
                 ),
-                TextSpan(
-                  text: '$_welcomeName!',
-                  style: const TextStyle(color: _landingPink),
-                ),
-              ],
+                children: [
+                  const TextSpan(
+                    text: '¡Hola ',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  TextSpan(
+                    text: '$_welcomeName!',
+                    style: const TextStyle(color: _landingPink),
+                  ),
+                ],
+              ),
+            )
+          else
+            const Text(
+              'Bienvenido a UMBRAL.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 23,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
           const SizedBox(height: 8),
-          const Text(
-            'Bienvenida a UMBRAL. Selecciona un módulo para comenzar:',
-            style: TextStyle(
+          Text(
+            isLoggedIn
+                ? 'Selecciona un módulo para comenzar:'
+                : 'Seleccione un módulo para continuar:',
+            style: const TextStyle(
               color: Color(0xFFE2D9EA),
               fontSize: 15,
               height: 1.35,
